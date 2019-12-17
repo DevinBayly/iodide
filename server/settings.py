@@ -13,9 +13,11 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 import os
 import re
 
-import dj_database_url
 import environ
+import redis
+from django.utils.log import DEFAULT_LOGGING
 from furl import furl
+from spinach.brokers.redis import RedisBroker, recommended_socket_opts
 
 env = environ.Env()
 
@@ -34,9 +36,13 @@ DEBUG = env.bool("IODIDE_SERVER_DEBUG", default=False)
 
 SITE_URL = env("SERVER_URI", default="http://localhost:8000/")
 SITE_HOSTNAME = furl(SITE_URL).host
-ALLOWED_HOSTS = [SITE_HOSTNAME]
-APP_VERSION_STRING = env.str("APP_VERSION_STRING", "dev")
 EVAL_FRAME_ORIGIN = env.str("EVAL_FRAME_ORIGIN", SITE_URL)
+EVAL_FRAME_HOSTNAME = furl(EVAL_FRAME_ORIGIN).host
+ALLOWED_HOSTS = list(set([SITE_HOSTNAME, EVAL_FRAME_HOSTNAME]))
+
+# Special settings so staging servers can redirect to production
+IS_STAGING = env.bool("IS_STAGING", default=False)
+PRODUCTION_SERVER_URL = env.str("PRODUCTION_SERVER_URL", None)
 
 # Define URI redirects.
 # Is a ;-delimited list of redirects, where each section is of the form
@@ -49,7 +55,7 @@ DOCKERFLOW_ENABLED = env.bool("DOCKERFLOW_ENABLED", default=False)
 # Social auth
 SOCIAL_AUTH_GITHUB_KEY = env.str("GITHUB_CLIENT_ID", None)
 SOCIAL_AUTH_GITHUB_SECRET = env.str("GITHUB_CLIENT_SECRET", None)
-SOCIAL_AUTH_GITHUB_SCOPE = []
+SOCIAL_AUTH_GITHUB_SCOPE = ["user:email"]
 SOCIAL_AUTH_POSTGRES_JSONFIELD = True
 
 # OpenIDC (aka auth0 identity/authentication)
@@ -64,6 +70,9 @@ GA_TRACKING_ID = env.str("GA_TRACKING_ID", None)
 # Maximum file length for uploaded data / assets
 MAX_FILENAME_LENGTH = 120
 MAX_FILE_SIZE = 1024 * 1024 * 10  # 10 megabytes is the default
+
+# Maximum length of file source URL
+MAX_FILE_SOURCE_URL_LENGTH = 8192
 
 # Minimum # of revisions for a notebook to show up in the index page list
 MIN_FIREHOSE_REVISIONS = 10
@@ -82,12 +91,14 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.sessions",
     "django.contrib.messages",
+    "social_django",
     "rest_framework",
     "rest_framework.authtoken",
     "server.base",
     "server.jwt",
     "server.notebooks",
     "server.files",
+    "spinach.contrib.spinachd",
 ]
 
 RESTRICT_API = env.bool("RESTRICT_API", default=False)
@@ -113,6 +124,9 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+if EVAL_FRAME_HOSTNAME != SITE_HOSTNAME:
+    MIDDLEWARE.append("server.notebooks.middleware.NotebookEvalFrameMiddleware")
+
 if DOCKERFLOW_ENABLED:
     INSTALLED_APPS.append("dockerflow.django")
     MIDDLEWARE.append("dockerflow.django.middleware.DockerflowMiddleware")
@@ -121,7 +135,6 @@ if USE_OPENIDC_AUTH:
     INSTALLED_APPS.append("server.openidc")
     MIDDLEWARE.append("server.openidc.middleware.OpenIDCAuthMiddleware")
 elif SOCIAL_AUTH_GITHUB_KEY:
-    INSTALLED_APPS.append("social_django")
     MIDDLEWARE.extend(
         [
             "social_django.middleware.SocialAuthExceptionMiddleware",
@@ -147,10 +160,19 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "social_django.context_processors.backends",
                 "server.context_processors.google_analytics",
+                "server.context_processors.site_url",
             ]
         },
     }
 ]
+
+LOGGING = DEFAULT_LOGGING.copy()
+LOGGING["loggers"].update(
+    {
+        "spinach": {"handlers": ["console"], "level": "INFO"},
+        "server": {"handlers": ["console"], "level": "INFO"},
+    }
+)
 
 # When DEBUG is True, allow HTTP traffic, otherwise, never allow HTTP traffic.
 SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
@@ -168,8 +190,11 @@ WSGI_APPLICATION = "server.wsgi.application"
 
 # Database
 # https://docs.djangoproject.com/en/2.0/ref/settings/#databases
+DATABASES = {"default": env.db("DATABASE_URL", default="postgres://postgres@db/postgres")}
 DB_REQUIRES_SSL = env.bool("DB_REQUIRES_SSL", default=not DEBUG)
-DATABASES = {"default": dj_database_url.config(conn_max_age=500, ssl_require=DB_REQUIRES_SSL)}
+if DB_REQUIRES_SSL:
+    DATABASES["default"].setdefault("OPTIONS", {})["sslmode"] = "require"
+DATABASES["default"].setdefault("CONN_MAX_AGE", 500)
 
 AUTHENTICATION_BACKENDS = (
     "social_core.backends.github.GithubOAuth2"
@@ -210,7 +235,7 @@ USE_TZ = True
 # Files in this directory will be served by WhiteNoise at the site root.
 WHITENOISE_ROOT = os.path.join(ROOT, "build")
 STATIC_ROOT = os.path.join(ROOT, "static")
-STATIC_URL = EVAL_FRAME_ORIGIN
+STATIC_URL = SITE_URL
 STATICFILES_DIRS = (os.path.join(BASE_DIR, "server", "static"),)
 
 # Create hashed+gzipped versions of assets during collectstatic,
@@ -219,3 +244,10 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 # Add a MIME type for .wasm files (which is not included in WhiteNoise's defaults)
 WHITENOISE_MIMETYPES = {".wasm": "application/wasm"}
+
+REDIS_HOST = env.str("REDIS_HOST", default="redis")
+REDIS_URL = env.str("REDIS_URL", default=f"redis://{REDIS_HOST}:6379/1")
+SPINACH_BROKER = RedisBroker(redis.from_url(REDIS_URL, **recommended_socket_opts))
+
+# Spacing for permanently-saved notebook revisions
+NOTEBOOK_REVISION_SAVE_INTERVAL_SECS = 60

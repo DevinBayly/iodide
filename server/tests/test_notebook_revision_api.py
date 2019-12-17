@@ -1,8 +1,9 @@
 import pytest
 from django.urls import reverse
 
-from helpers import get_rest_framework_time_string
 from server.notebooks.models import NotebookRevision
+
+from .helpers import get_rest_framework_time_string
 
 
 @pytest.fixture
@@ -11,7 +12,10 @@ def two_test_notebooks_and_revisions(two_test_notebooks):
 
     # add another revision to the main notebook that we are testing
     NotebookRevision.objects.create(
-        notebook=test_notebook, title="Revision 2", content="*fake notebook content 2*"
+        notebook=test_notebook,
+        title="Revision 2",
+        content="*fake notebook content 2*",
+        is_draft=False,
     )
 
     # add a revision for another notebook, to make sure that doesn't get mixed in
@@ -19,6 +23,7 @@ def two_test_notebooks_and_revisions(two_test_notebooks):
         notebook=two_test_notebooks[1],
         title="Revision for another notebook",
         content="*fake notebook 2 content 2*",
+        is_draft=False,
     )
     return two_test_notebooks
 
@@ -51,6 +56,7 @@ def test_read_notebook_revisions(fake_user, two_test_notebooks_and_revisions, cl
             "created": get_rest_framework_time_string(revision.created),
             "id": revision.id,
             "title": revision.title,
+            "is_draft": False,
         }
         for revision in NotebookRevision.objects.filter(notebook=test_notebook)
     ]
@@ -68,6 +74,7 @@ def test_read_notebook_revisions(fake_user, two_test_notebooks_and_revisions, cl
         "created": get_rest_framework_time_string(test_revision.created),
         "id": test_revision.id,
         "title": test_revision.title,
+        "is_draft": False,
     }
 
 
@@ -93,6 +100,7 @@ def test_read_multiple_revisions(fake_user, test_notebook, client):
             notebook=test_notebook,
             title="Revision %s" % i,
             content="*fake notebook content %s*" % i,
+            is_draft=False,
         )
         for i in range(2, 4)
     ]
@@ -174,6 +182,7 @@ def test_create_notebook_revision(fake_user, test_notebook, client):
         "created": get_rest_framework_time_string(new_notebook_revision.created),
         "id": new_notebook_revision.id,
         "title": post_blob["title"],
+        "is_draft": True,
     }
 
 
@@ -235,6 +244,22 @@ def test_dont_create_unmodified_notebook_revision(fake_user, test_notebook, clie
 
     # be sure that we get the expected error
     assert resp.json() == {"non_field_errors": ["Revision unchanged from previous"]}
+
+
+def test_create_notebook_revision_content_empty_string(fake_user, test_notebook, client):
+    last_revision = NotebookRevision.objects.filter(notebook_id=test_notebook.id).first()
+    post_blob = {"parent_revision_id": last_revision.id, "title": "new title", "content": ""}
+    client.force_login(user=fake_user)
+
+    resp = client.post(
+        reverse("notebook-revisions-list", kwargs={"notebook_id": test_notebook.id}), post_blob
+    )
+
+    assert resp.status_code == 201
+    assert NotebookRevision.objects.count() == 2
+    new_notebook_revision = NotebookRevision.objects.first()
+    assert new_notebook_revision.content == post_blob["content"]
+    assert new_notebook_revision.title == post_blob["title"]
 
 
 def test_delete_notebook_revision_not_logged_in(test_notebook, client):

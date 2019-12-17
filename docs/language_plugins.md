@@ -27,10 +27,10 @@ levels of support to make it easier to know what to expect.
 | Project                                                                         | Language       | Level 1 | Level 2 | Level 3 | Level 4 | Built-in |
 |---------------------------------------------------------------------------------|----------------|---------|---------|---------|---------|----------|
 | [Pyodide](http://github.com/iodide-project/pyodide)                             | Python         | ✓       | ✓       | ✓       | partial | ✓        |
+| [Julide](https://github.com/keno/julia-wasm)                                                                        | Julia           | ✓        | ✓       | ✓       |         |          |
 | [AssemblyScript](https://alpha.iodide.io/notebooks/1234) | AssemblyScript | ✓       | ✓       |         |         |          |
 | [Lua](https://alpha.iodide.io/notebooks/1416/)            | Lua            | ✓       | ✓       |         |         |          |
 | [Opal](https://alpha.iodide.io/notebooks/1453/)           | Ruby           | ✓       | ✓       |         |         |          |
-| [Julide](https://github.com/keno/julia-wasm)                                                                        | Julia           | ✓        |         |         |         |          |
 | [Domical](https://github.com/louisabraham/domical)                              | OCaml          | ✓       |         |         |         |          |
 | [PlantUml](https://github.com/six42/iodide-plantuml-plugin)                              | PlantUml          | ✓       |         |         |         |          |
 
@@ -49,8 +49,6 @@ the following format:
 {
   "languageId": "jsx",
   "displayName": "React JSX",
-  "codeMirrorMode": "jsx",
-  "keybinding": "x",
   "url": "https://raw.githubusercontent.com/hamilton/iodide-jsx/master/docs/evaluate-jsx.js",
   "module": "jsx",
   "evaluator": "evaluateJSX",
@@ -64,10 +62,6 @@ The individual fields are described below:
 
 - `displayName`: A longer name used to identify the language in menus and other UX elements.
 
-- `codeMirrorMode`: The name of the CodeMirror plugin used to provide syntax highlighting for the language.  A list of the available plugin names is [here](https://github.com/codemirror/CodeMirror/tree/master/mode).
-
-- `keybinding`: The key used to select the language.  (TODO: Is this used anymore following the IOMD editing refactor?)
-
 - `url`: The URL to a JavaScript source file that defines the language support.  It is evaluated directly in the scope that runs Iodide user code, therefore it should should be "modularized" such that it only adds a single object to the global namespace.
 
 - `module`: The name of the module provided by the JavaScript file given by `url`.
@@ -76,4 +70,15 @@ The individual fields are described below:
 
 - `asyncEvaluator`: (optional) If evaluating code requires making asynchronous calls, for example, to load additional code from a remote location, an `asyncEvaluator` method should be provided.  It will take precedence over `evaluator` if provided.  It takes a string of source code, but returns a `Promise` that resolves to result value rather than returning the result immediately.  Otherwise, it follows the same conventions as `evaluator`.
 
+- `autocomplete`: (optional) The name of the function to get autocomplete candidates.  This function must accept a single argument `code`, and return a array of strings representing candidate completions. _Note_: language plugin authors are encouraged to see whether there is a Jupyter kernel that implement this functionality for their language; such code could be adapted by setting the `cursor_pos` argument expected by Jupyter to the final position in the `code` string (Iodide always passes code strings that are truncated to the cursor's position). Please see the [Jupyter docs](https://jupyter-client.readthedocs.io/en/stable/messaging.html#completion).
+
 - `pluginType`: Must always be `language` for language plugins.  Other values are resolved for other plugin types to be defined in the future.
+
+If desired, you may also place the language plugin definition inside a json file and load it using a fetch cell as follows:
+
+```
+%% fetch
+plugin: https://example.com/plugin-definition.json
+```
+
+See the iomd documentation on [chunk types](../iomd/#iomd-chunk-types) for more details.

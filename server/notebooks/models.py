@@ -30,6 +30,7 @@ class Notebook(models.Model):
         verbose_name = "Notebook"
         verbose_name_plural = "Notebooks"
         ordering = ("id",)
+        db_table = "notebook"
 
 
 class NotebookRevision(models.Model):
@@ -41,7 +42,8 @@ class NotebookRevision(models.Model):
 
     title = models.CharField(max_length=Notebook.MAX_TITLE_LENGTH)
     created = models.DateTimeField(auto_now_add=True)
-    content = models.TextField()
+    content = models.TextField(blank=True)
+    is_draft = models.BooleanField()
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -57,3 +59,4 @@ class NotebookRevision(models.Model):
         verbose_name = "Notebook Revision"
         verbose_name_plural = "Notebook Revisions"
         ordering = ("-created",)
+        db_table = "notebook_revision"

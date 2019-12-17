@@ -1,14 +1,37 @@
-import os
-import sys
+import datetime
+import logging
+import time
 
 import pytest
 from rest_framework.test import APIClient
+from spinach.contrib.spinachd.apps import spin
 
 from server.base.models import User
-from server.files.models import File
+from server.files.models import File, FileSource
 from server.notebooks.models import Notebook, NotebookRevision
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "helpers"))
+logger = logging.getLogger(__name__)
+
+
+def pytest_configure(config):
+    # work-around for https://github.com/ktosiek/pytest-freezegun/issues/13
+    config.addinivalue_line(
+        "markers",
+        "freeze_time(timestamp): freeze time to the given timestamp for the duration of the test.",
+    )
+
+
+@pytest.fixture(scope="session", autouse=True)
+def spinach_worker(request):
+    spin.start_workers(number=1, block=False)
+    logger.info("Starting Spinach workers.")
+
+    def stop_workers():
+        spin.stop_workers()
+        logging.info("Stopping Spinach workers.")
+        time.sleep(2)
+
+    request.addfinalizer(stop_workers)
 
 
 @pytest.fixture
@@ -41,7 +64,7 @@ def fake_user2(transactional_db):
 def test_notebook(fake_user):
     notebook = Notebook.objects.create(owner=fake_user, title="Fake notebook")
     NotebookRevision.objects.create(
-        notebook=notebook, title="First revision", content="*fake notebook content*"
+        notebook=notebook, title="First revision", content="*fake notebook content*", is_draft=False
     )
     return notebook
 
@@ -62,6 +85,7 @@ def two_test_notebooks(fake_user):
             notebook=notebook,
             title="First revision of notebook %s" % i,
             content="*fake notebook content %s*" % i,
+            is_draft=False,
         )
         notebooks.append(notebook)
     return notebooks
@@ -72,3 +96,13 @@ def notebook_post_blob():
     # this blob should be sufficient to create a new notebook (assuming the user of
     # the api is authorized to do so)
     return {"title": "My cool notebook", "content": "Fake notebook content"}
+
+
+@pytest.fixture
+def test_file_source(test_notebook):
+    return FileSource.objects.create(
+        notebook=test_notebook,
+        filename="foo.csv",
+        url="https://iodide.io/foo",
+        update_interval=datetime.timedelta(days=1),
+    )

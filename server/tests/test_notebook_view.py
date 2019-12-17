@@ -3,9 +3,10 @@ import random
 import pytest
 from django.urls import reverse
 
-from helpers import get_script_block, get_script_block_json, get_title_block
 from server.notebooks.models import Notebook, NotebookRevision
 from server.settings import MAX_FILE_SIZE, MAX_FILENAME_LENGTH
+
+from .helpers import get_script_block, get_script_block_json, get_title_block
 
 
 def test_notebook_view(client, test_notebook):
@@ -19,7 +20,6 @@ def test_notebook_view(client, test_notebook):
     assert expected_content in str(resp.content)
     assert get_script_block_json(resp.content, "notebookInfo") == {
         "connectionMode": "SERVER",
-        "files": [],
         "forked_from": False,
         "notebook_id": test_notebook.id,
         "revision_id": initial_revision.id,
@@ -34,7 +34,10 @@ def test_notebook_view(client, test_notebook):
     # add a new revision, verify that a fresh load gets it
     new_revision_content = "My new fun content"
     new_revision = NotebookRevision.objects.create(
-        content=new_revision_content, notebook=test_notebook, title="Second revision"
+        content=new_revision_content,
+        notebook=test_notebook,
+        title="Second revision",
+        is_draft=False,
     )
     resp = client.get(reverse("notebook-view", args=[str(test_notebook.id)]))
     assert resp.status_code == 200
@@ -45,22 +48,38 @@ def test_notebook_view(client, test_notebook):
     assert new_expected_content in str(resp.content)
 
 
+def test_notebook_view_escapes_iomd(client, fake_user):
+    notebook = Notebook.objects.create(owner=fake_user, title="Fake notebook")
+    iomd_content = "<>'\"&abcd="
+    expected_escaped_iomd_content = "&lt;&gt;&#x27;&quot;&amp;abcd="
+    NotebookRevision.objects.create(
+        notebook=notebook, title="First revision", content=iomd_content, is_draft=False
+    )
+
+    resp = client.get(reverse("notebook-view", args=[str(notebook.id)]))
+    expected_content = '<script id="iomd" type="text/iomd">{}</script>'.format(
+        expected_escaped_iomd_content
+    )
+    assert expected_content in str(resp.content)
+
+
 def test_notebook_view_old_revision(client, test_notebook):
     initial_revision = NotebookRevision.objects.filter(notebook=test_notebook).last()
     new_revision_content = "My new fun content"
     NotebookRevision.objects.create(
-        content=new_revision_content, notebook=test_notebook, title="Second revision"
+        content=new_revision_content,
+        notebook=test_notebook,
+        title="Second revision",
+        is_draft=False,
     )
     resp = client.get(
         reverse("notebook-view", args=[str(test_notebook.id)]) + f"?revision={initial_revision.id}"
     )
     assert resp.status_code == 200
     assert get_title_block(resp.content) == initial_revision.title
-    print(str(resp.content))
     assert get_script_block(resp.content, "iomd", "text/iomd") == initial_revision.content
     assert get_script_block_json(resp.content, "notebookInfo") == {
         "connectionMode": "SERVER",
-        "files": [],
         "forked_from": False,
         "notebook_id": test_notebook.id,
         "revision_id": initial_revision.id,
@@ -116,7 +135,10 @@ def test_tryit_view(client, fake_user, logged_in):
 def test_notebook_revisions_page(fake_user, test_notebook, client):
     # create another notebook revision
     NotebookRevision.objects.create(
-        notebook=test_notebook, title="second revision", content="*fake notebook content 2*"
+        notebook=test_notebook,
+        title="second revision",
+        content="*fake notebook content 2*",
+        is_draft=False,
     )
     resp = client.get(reverse("notebook-revisions", args=[str(test_notebook.id)]))
     assert get_title_block(resp.content) == f"Revisions - {test_notebook.title}"
@@ -140,3 +162,10 @@ def test_notebook_revisions_page(fake_user, test_notebook, client):
         ],
         "userInfo": {},
     }
+
+
+def test_eval_frame_view(client):
+    uri = reverse("eval-frame-view")
+    resp = client.get(uri)
+    assert resp.status_code == 200
+    assert '<div id="eval-container"></div>' in str(resp.content)

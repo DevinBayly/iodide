@@ -2,9 +2,10 @@ import pytest
 from django.conf import settings
 from django.urls import reverse
 
-from helpers import get_script_block_json, get_title_block
 from server.base.models import User
 from server.notebooks.models import Notebook, NotebookRevision
+
+from .helpers import get_script_block_json, get_title_block
 
 
 @pytest.fixture
@@ -19,6 +20,7 @@ def ten_test_notebooks(fake_user):
             notebook=notebook,
             title="First revision of notebook %s" % i,
             content="*fake notebook content %s*" % i,
+            is_draft=False,
         )
         # every other notebook gets min # of revisions to show up in the index page list
         if i % 2 == 0:
@@ -27,13 +29,14 @@ def ten_test_notebooks(fake_user):
                     notebook=notebook,
                     title="Revision %s of notebook %s" % (j, i),
                     content="*fake notebook content %s revision %s" % (i, j),
+                    is_draft=False,
                 )
         notebooks.append(notebook)
     return notebooks
 
 
 @pytest.mark.parametrize("logged_in", [True, False])
-def test_index_view(client, ten_test_notebooks, fake_user, logged_in):
+def test_index_view(client, ten_test_notebooks, fake_user, settings, logged_in):
     if logged_in:
         client.force_login(fake_user)
     resp = client.get(reverse("index"))
@@ -83,6 +86,19 @@ def test_index_view(client, ten_test_notebooks, fake_user, logged_in):
     }
 
 
+def test_index_view_staging(transactional_db, client, settings):
+    settings.IS_STAGING = True
+    settings.PRODUCTION_SERVER_URL = "http://localhost:8001"
+    resp = client.get(reverse("index"))
+    assert resp.status_code == 200
+    assert get_script_block_json(resp.content, "pageData") == {
+        "isStaging": settings.IS_STAGING,
+        "productionServerURL": settings.PRODUCTION_SERVER_URL,
+        "notebookList": [],
+        "userInfo": {},
+    }
+
+
 @pytest.mark.parametrize(
     ("username", "first_name", "last_name"),
     [
@@ -102,7 +118,7 @@ def test_user_view_with_different_names(transactional_db, client, username, firs
     )
     notebook = Notebook.objects.create(owner=test_user, title="Fake notebook")
     revision = NotebookRevision.objects.create(
-        notebook=notebook, title="First revision", content="*fake notebook content*"
+        notebook=notebook, title="First revision", content="*fake notebook content*", is_draft=False
     )
     resp = client.get(reverse("user", kwargs={"name": test_user.username}))
     assert resp.status_code == 200
