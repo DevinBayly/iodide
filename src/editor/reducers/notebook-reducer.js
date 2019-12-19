@@ -41,7 +41,38 @@ const notebookReducer = (state = newNotebook(), action) => {
 
     case "TOGGLE_WRAP_IN_EDITORS":
       return Object.assign({}, state, { wrapEditors: !state.wrapEditors });
-
+    case "EXTENSION_DELETE_TEXT": {
+      // perform similar update to the cursor updae to the state of the notebook object
+      const { line, col, range } = action;
+      console.log(state, "is state");
+      let { iomd } = state;
+      iomd = iomd.slice(0, range.offset) + iomd.slice(range.offset + range.len);
+      return Object.assign({}, state, {
+        editorCursor: {
+          line,
+          col
+        },
+        iomd
+      });
+    }
+    case "EXTENSION_CURSOR_UPDATE": {
+      const { line, col, range, text } = action;
+      // range contains length info for comment state
+      // insert text in state.iomd at correct position without mutating
+      console.log(line, col, range, text);
+      // first check that the number of lines is the same if not add new lines to bottom of iomd file
+      // naive approach here
+      let { iomd } = state;
+      // the addition of range.len gives us ability to delete text that was overwritten instead of persisting it in the notebook
+      iomd = iomd.slice(0, range.offset) + text + iomd.slice(range.offset + range.len);
+      return Object.assign({}, state, {
+        editorCursor: {
+          line,
+          col // we want the cursor to be at the end of the word just inserted
+        },
+        iomd
+      });
+    }
     case "UPDATE_CURSOR": {
       const { line, col } = action;
       return Object.assign({}, state, {
