@@ -40,6 +40,11 @@ import CSSCascadeProvider from "../shared/components/css-cascade-provider";
 import { initializeDefaultKeybindings } from "./initialization/keybindings";
 import { handleInterceptBackspace } from "../shared/intercept-keybindings";
 
+// initialize the webextension for external editing
+import extension from "./port-to-extension";
+
+extension();
+
 initializeDefaultKeybindings();
 handleInterceptBackspace();
 
