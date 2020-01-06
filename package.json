@@ -91,10 +91,10 @@
     "universal-router": "8.3.0"
   },
   "devDependencies": {
-    "@babel/core": "7.7.5",
+    "@babel/core": "7.7.7",
     "@babel/plugin-proposal-class-properties": "7.7.4",
     "@babel/plugin-transform-modules-commonjs": "7.7.5",
-    "@babel/preset-env": "7.7.6",
+    "@babel/preset-env": "7.7.7",
     "@babel/preset-react": "7.7.4",
     "@storybook/addon-actions": "5.2.8",
     "@storybook/addon-links": "5.2.8",
@@ -128,7 +128,7 @@
     "identity-obj-proxy": "3.0.0",
     "jest": "24.9.0",
     "jest-cli": "24.9.0",
-    "jest-fetch-mock": "2.1.2",
+    "jest-fetch-mock": "3.0.0",
     "jest-localstorage-mock": "2.4.0",
     "jquery": "3.4.1",
     "lodash-webpack-plugin": "0.11.5",
@@ -142,9 +142,9 @@
     "style-loader": "1.0.2",
     "terser-webpack-plugin": "2.3.1",
     "unused-webpack-plugin": "2.4.0",
-    "webpack": "4.41.3",
+    "webpack": "4.41.4",
     "webpack-cli": "3.3.10",
-    "webpack-dev-server": "3.9.0",
+    "webpack-dev-server": "3.10.1",
     "webpack-merge": "4.2.2",
     "write-file-webpack-plugin": "4.5.1"
   }

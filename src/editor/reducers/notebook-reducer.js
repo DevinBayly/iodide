@@ -50,7 +50,10 @@ const notebookReducer = (state = newNotebook(), action) => {
       // naive approach here
       let { iomd } = state;
       // the addition of range.len gives us ability to delete text that was overwritten instead of persisting it in the notebook
-      iomd = iomd.slice(0, range.offset) + text + iomd.slice(range.offset + range.len);
+      iomd =
+        iomd.slice(0, range.offset) +
+        text +
+        iomd.slice(range.offset + range.len);
       return Object.assign({}, state, {
         editorCursor: {
           line,
