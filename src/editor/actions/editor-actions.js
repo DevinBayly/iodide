@@ -16,6 +16,7 @@ export function updateEditorSelections(selections) {
 }
 
 export function updateEditorCursor(line, col) {
+  console.log("updating cursor",line,col)
   return { type: "UPDATE_CURSOR", line, col };
 }
 
