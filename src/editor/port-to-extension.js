@@ -58,13 +58,12 @@ function initWebExtPort() {
   const { port1 } = extensionChannel;
   const { port2 } = extensionChannel;
 
-  setTimeout(() => {
-    window.postMessage(
-      { direction: "iodide-to-extension", message: "startup" },
-      "*",
-      [port2]
-    );
-  }, 3000);
+  // sends message from iodide to the extension triggering a connection, why does it have to wait? is the extension still loading?
+  window.postMessage(
+    { direction: "iodide-to-extension", message: "startup" },
+    "*",
+    [port2]
+  );
 
   function handleExtensionMessage(e) {
     extensionConnected = true;

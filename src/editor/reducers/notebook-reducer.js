@@ -60,7 +60,7 @@ const notebookReducer = (state = newNotebook(), action) => {
           col // we want the cursor to be at the end of the word just inserted
         },
         iomd,
-        iomdChunks:iomdParser(iomd)
+        iomdChunks: iomdParser(iomd)
       });
     }
     case "UPDATE_CURSOR": {
